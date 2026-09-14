@@ -44,7 +44,7 @@
           return {
             ok: false,
             message: "We couldn't send a sign-in link to that address. " +
-              "If you're an active KTP member, contact your chapter's tech chair.",
+              "If you're an active KTP member, make sure your chapter has submitted their roster or contact kappathetapinational@gmail.com.",
           };
         }
         return { ok: true };
