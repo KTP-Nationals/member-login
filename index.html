@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KTP Member Login</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="page">
+  <div class="page-content">
+    <main class="card" role="main">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">KTP</div>
+        <h1>KTP Member Login</h1>
+        <p>Sign in with your chapter email to continue</p>
+      </div>
+
+      <div id="alertError" class="alert alert-error" role="alert">
+        <span class="alert-icon" aria-hidden="true">&#9888;</span>
+        <span id="alertErrorText">That email or access code isn't recognized.</span>
+      </div>
+
+      <div id="alertSuccess" class="alert alert-success" role="status">
+        <span class="alert-icon" aria-hidden="true">&#9993;</span>
+        <span id="alertSuccessText"></span>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="email">Chapter email</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            placeholder="you@cornell.edu"
+            autocomplete="email"
+            inputmode="email"
+            required
+          >
+          <p class="field-hint">We'll email you a one-time sign-in link &mdash; no password needed.</p>
+        </div>
+
+        <button type="submit" class="btn-primary" id="submitBtn">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="btn-label">Send sign-in link</span>
+        </button>
+
+        <div class="form-footer">
+          Not receiving a link? Access is limited to invited KTP members.<br>
+          Contact your chapter's tech chair to be added.
+        </div>
+      </form>
+    </main>
+  </div>
+  <div class="page-footer">Kappa Theta Pi &middot; Members-only portal</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/js/supabase-config.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/auth.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var form = document.getElementById('loginForm');
+  var emailInput = document.getElementById('email');
+  var submitBtn = document.getElementById('submitBtn');
+  var alertError = document.getElementById('alertError');
+  var alertErrorText = document.getElementById('alertErrorText');
+  var alertSuccess = document.getElementById('alertSuccess');
+  var alertSuccessText = document.getElementById('alertSuccessText');
+
+  function hideAlerts() {
+    alertError.classList.remove('is-visible');
+    alertSuccess.classList.remove('is-visible');
+  }
+
+  function showError(message) {
+    alertSuccess.classList.remove('is-visible');
+    alertErrorText.textContent = message;
+    alertError.classList.add('is-visible');
+  }
+
+  function showSuccess(message) {
+    alertError.classList.remove('is-visible');
+    alertSuccessText.textContent = message;
+    alertSuccess.classList.add('is-visible');
+  }
+
+  function setLoading(isLoading) {
+    submitBtn.disabled = isLoading;
+    submitBtn.classList.toggle('is-loading', isLoading);
+  }
+
+  function markInvalid(input, invalid) {
+    if (invalid) { input.setAttribute('aria-invalid', 'true'); }
+    else { input.removeAttribute('aria-invalid'); }
+  }
+
+  // Already signed in? Skip straight to the directory.
+  if (window.supabaseClient) {
+    window.KTPAuth.session().then(function (session) {
+      if (session) { window.location.replace('dashboard.html'); }
+    });
+  }
+
+  emailInput.addEventListener('input', function () {
+    markInvalid(emailInput, false);
+    hideAlerts();
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    if (!window.supabaseClient) {
+      showError('This site isn’t connected to Supabase yet. See README.md to finish setup.');
+      return;
+    }
+
+    var email = emailInput.value.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      markInvalid(emailInput, true);
+      showError('Enter a valid email address.');
+      return;
+    }
+
+    hideAlerts();
+    setLoading(true);
+
+    window.KTPAuth.sendMagicLink(email).then(function (result) {
+      setLoading(false);
+
+      if (!result.ok) {
+        markInvalid(emailInput, true);
+        showError(result.message);
+        return;
+      }
+
+      form.querySelector('.btn-primary').disabled = true;
+      emailInput.disabled = true;
+      showSuccess('Check ' + email + ' for a sign-in link. It’ll expire in about an hour.');
+    }).catch(function () {
+      setLoading(false);
+      showError('Something went wrong sending your sign-in link. Please try again.');
+    });
+  });
+}());
+</script>
+</body>
+</html>
