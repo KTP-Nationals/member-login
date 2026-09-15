@@ -628,6 +628,45 @@ a { color: inherit; }
   color: #9aa6c4;
 }
 
+.email-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--navy-500);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.copy-btn:hover {
+  background: var(--navy-100);
+  color: var(--navy-700);
+}
+
+.copy-btn:focus-visible {
+  outline: 2px solid var(--navy-500);
+  outline-offset: 1px;
+}
+
+.copy-btn.is-copied {
+  color: var(--success);
+}
+
+.copy-btn:disabled {
+  cursor: default;
+}
+
 .empty-row td {
   text-align: center;
   color: var(--navy-600);

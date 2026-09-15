@@ -42,10 +42,11 @@ Supabase dashboard and I can't check them from outside:
 - **Alumni Database** (`dashboard.html`) — graduated members, with chapter,
   major, job, company, and grad date. Search by name, filter by chapter /
   company / grad year, click-to-sort any column, one-click reset.
-- **Member Directory** (`members.html`) — current members, with major, grad
-  date, school email (click to email), and LinkedIn/resume links (open in
-  a new tab). Search by name, filter by major / grad year, same sort and
-  reset pattern as Alumni Database.
+- **Member Directory** (`members.html`) — current members, with chapter,
+  major, grad date, school email (click to email, or copy with the icon
+  next to it), and a LinkedIn link (opens in a new tab). Search by name,
+  filter by chapter / major / grad year, same sort and reset pattern as
+  Alumni Database.
 - Both read from Postgres tables gated by RLS — an unauthenticated API
   request gets zero rows back, for real, not just hidden in the UI.
 - A left sidebar switches between the two directories; whichever page
@@ -119,16 +120,22 @@ create table if not exists public.member_directory (
   id uuid primary key default gen_random_uuid(),
   first_name text not null,
   last_name text not null,
+  chapter text,  -- nullable so adding this column later stays a safe migration
   school_email text,
   linkedin text,
-  resume_link text,
   major text,
   grad_date text,  -- free text; a bare year like "2027" sorts fine
   created_at timestamptz not null default now()
 );
 
+-- Safe to re-run against a table created before `chapter` existed or
+-- before `resume_link` was removed:
+alter table public.member_directory add column if not exists chapter text;
+alter table public.member_directory drop column if exists resume_link;
+
 alter table public.member_directory enable row level security;
 
+drop policy if exists "Authenticated members can view member directory" on public.member_directory;
 create policy "Authenticated members can view member directory"
 on public.member_directory
 for select
@@ -196,8 +203,8 @@ name, so raw headers like "First Name" get rejected.
 
 - **`alumni`**: `first_name`, `last_name`, `full_name`, `chapter`,
   `grad_date`, `major`, `job`, `company`
-- **`member_directory`**: `first_name`, `last_name`, `school_email`,
-  `linkedin`, `resume_link`, `major`, `grad_date`
+- **`member_directory`**: `first_name`, `last_name`, `chapter`,
+  `school_email`, `linkedin`, `major`, `grad_date`
 
 Before importing:
 

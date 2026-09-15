@@ -9,7 +9,7 @@
  * THE SEAM: getAll() below is the only place that touches the data source.
  * Point it anywhere else and everything below it — search, sort, filter,
  * rendering — keeps working, as long as records keep this shape:
- *   { name, major, gradDate, email, linkedin, resume }
+ *   { name, chapter, major, gradDate, email, linkedin }
  *
  * This mirrors assets/js/alumni.js closely on purpose; the two directories
  * share a lot of behavior but different fields, so they're kept as
@@ -26,16 +26,16 @@
     }
     return global.supabaseClient
       .from('member_directory')
-      .select('first_name, last_name, school_email, linkedin, resume_link, major, grad_date')
+      .select('first_name, last_name, chapter, school_email, linkedin, major, grad_date')
       .then(function (res) {
         if (res.error) { throw res.error; }
         return (res.data || []).map(function (row) {
           var name = ((row.first_name || '') + ' ' + (row.last_name || '')).trim();
           return {
             name: name,
+            chapter: row.chapter,
             email: row.school_email,
             linkedin: row.linkedin,
-            resume: row.resume_link,
             major: row.major,
             gradDate: row.grad_date,
           };
@@ -90,14 +90,57 @@
       escapeHtml(label) + ' ↗</a>';
   }
 
+  var COPY_ICON =
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>' +
+    '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+
   function emailCell(email) {
     var e = String(email || '').trim();
     if (!e) { return '<span class="row-muted">&mdash;</span>'; }
-    return '<a class="row-link" href="mailto:' + escapeHtml(e) + '">' + escapeHtml(e) + '</a>';
+    return (
+      '<span class="email-cell">' +
+        '<a class="row-link" href="mailto:' + escapeHtml(e) + '">' + escapeHtml(e) + '</a>' +
+        '<button type="button" class="copy-btn" data-copy-email="' + escapeHtml(e) + '" ' +
+          'title="Copy email" aria-label="Copy email address">' + COPY_ICON + '</button>' +
+      '</span>'
+    );
+  }
+
+  /* Clipboard write needs a secure context (https, or localhost while
+     testing) — falls back to the classic textarea+execCommand trick if
+     navigator.clipboard isn't available. Resolves true/false; never
+     rejects, so callers don't need a .catch(). */
+  function copyToClipboard(text) {
+    if (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText) {
+      return global.navigator.clipboard.writeText(text)
+        .then(function () { return true; })
+        .catch(function () { return legacyCopy(text); });
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+
+  function legacyCopy(text) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) {
+      return false;
+    }
   }
 
   function setup(root, all) {
     var searchInput = root.querySelector('[data-members-search]');
+    var chapterSelect = root.querySelector('[data-members-chapter]');
     var majorSelect = root.querySelector('[data-members-major]');
     var gradYearSelect = root.querySelector('[data-members-gradyear]');
     var resetBtn = root.querySelector('[data-members-reset]');
@@ -105,7 +148,7 @@
     var resultsCount = root.querySelector('[data-members-count]');
     var headers = Array.prototype.slice.call(root.querySelectorAll('[data-sort-key]'));
 
-    var state = { query: '', major: 'all', gradYear: 'all', sortKey: 'name', sortDir: 'asc' };
+    var state = { query: '', chapter: 'all', major: 'all', gradYear: 'all', sortKey: 'name', sortDir: 'asc' };
 
     function fillSelect(select, values, allLabel) {
       var frag = document.createDocumentFragment();
@@ -123,12 +166,14 @@
       select.appendChild(frag);
     }
 
+    fillSelect(chapterSelect, uniqueSorted(all, 'chapter'), 'All chapters');
     fillSelect(majorSelect, uniqueSorted(all, 'major'), 'All majors');
     fillSelect(gradYearSelect, uniqueYears(all), 'All grad years');
 
     function filtered() {
       var q = state.query.trim().toLowerCase();
       return all.filter(function (m) {
+        if (state.chapter !== 'all' && m.chapter !== state.chapter) { return false; }
         if (state.major !== 'all' && m.major !== state.major) { return false; }
         if (state.gradYear !== 'all' && extractYear(m.gradDate) !== state.gradYear) { return false; }
         if (q && m.name.toLowerCase().indexOf(q) === -1) { return false; }
@@ -157,11 +202,11 @@
           return (
             '<tr>' +
               '<td class="col-name">' + escapeHtml(m.name) + '</td>' +
+              '<td>' + (m.chapter ? '<span class="chip">' + escapeHtml(m.chapter) + '</span>' : '<span class="row-muted">&mdash;</span>') + '</td>' +
               '<td>' + escapeHtml(m.major || '') + '</td>' +
               '<td>' + escapeHtml(m.gradDate || '') + '</td>' +
               '<td>' + emailCell(m.email) + '</td>' +
               '<td>' + linkCell(m.linkedin, 'View') + '</td>' +
-              '<td>' + linkCell(m.resume, 'View') + '</td>' +
             '</tr>'
           );
         }).join('');
@@ -182,6 +227,11 @@
       render();
     });
 
+    chapterSelect.addEventListener('change', function () {
+      state.chapter = chapterSelect.value;
+      render();
+    });
+
     majorSelect.addEventListener('change', function () {
       state.major = majorSelect.value;
       render();
@@ -194,12 +244,35 @@
 
     resetBtn.addEventListener('click', function () {
       state.query = '';
+      state.chapter = 'all';
       state.major = 'all';
       state.gradYear = 'all';
       searchInput.value = '';
+      chapterSelect.value = 'all';
       majorSelect.value = 'all';
       gradYearSelect.value = 'all';
       render();
+    });
+
+    /* Event delegation for the per-row copy buttons: render() rewrites
+       tbody's innerHTML on every change, so listeners bound to individual
+       buttons would be lost each time. One listener on tbody survives that. */
+    tbody.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest && e.target.closest('[data-copy-email]');
+      if (!btn || btn.disabled) { return; }
+
+      var email = btn.getAttribute('data-copy-email');
+      copyToClipboard(email).then(function (ok) {
+        var original = btn.innerHTML;
+        btn.innerHTML = ok ? '&#10003;' : '&#10007;';
+        btn.classList.toggle('is-copied', ok);
+        btn.disabled = true;
+        setTimeout(function () {
+          btn.innerHTML = original;
+          btn.classList.remove('is-copied');
+          btn.disabled = false;
+        }, 1200);
+      });
     });
 
     headers.forEach(function (th) {
