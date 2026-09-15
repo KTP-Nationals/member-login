@@ -1,0 +1,8 @@
+# Real member/alumni data should never be committed — it belongs in
+# Supabase (loaded via the dashboard's CSV import or the SQL Editor),
+# not in this repo. This blanket-ignores CSVs so a roster export dropped
+# into this folder by habit doesn't end up in git history.
+*.csv
+
+# OS cruft
+.DS_Store

@@ -9,7 +9,7 @@
  * THE SEAM: getAll() below is the only place that touches the data source.
  * Point it anywhere else and everything below it — search, sort, filter,
  * rendering — keeps working, as long as records keep this shape:
- *   { name, chapter, company, title, gradYear, location }
+ *   { name, chapter, major, job, company, gradDate }
  */
 (function (global) {
   'use strict';
@@ -22,17 +22,17 @@
     }
     return global.supabaseClient
       .from('alumni')
-      .select('name, chapter, company, title, grad_year, location')
+      .select('full_name, chapter, major, job, company, grad_date')
       .then(function (res) {
         if (res.error) { throw res.error; }
         return (res.data || []).map(function (row) {
           return {
-            name: row.name,
+            name: row.full_name,
             chapter: row.chapter,
+            major: row.major,
+            job: row.job,
             company: row.company,
-            title: row.title,
-            gradYear: row.grad_year,
-            location: row.location,
+            gradDate: row.grad_date,
           };
         });
       });
@@ -109,16 +109,17 @@
 
       if (rows.length === 0) {
         tbody.innerHTML =
-          '<tr class="empty-row"><td colspan="5">No alumni match your search or filters.</td></tr>';
+          '<tr class="empty-row"><td colspan="6">No alumni match your search or filters.</td></tr>';
       } else {
         tbody.innerHTML = rows.map(function (a) {
           return (
             '<tr>' +
               '<td class="col-name">' + escapeHtml(a.name) + '</td>' +
               '<td><span class="chip">' + escapeHtml(a.chapter) + '</span></td>' +
-              '<td>' + escapeHtml(a.company) + '</td>' +
-              '<td>' + escapeHtml(a.title) + '</td>' +
-              '<td>' + escapeHtml(a.gradYear) + '</td>' +
+              '<td>' + escapeHtml(a.major || '') + '</td>' +
+              '<td>' + escapeHtml(a.job || '') + '</td>' +
+              '<td>' + escapeHtml(a.company || '') + '</td>' +
+              '<td>' + escapeHtml(a.gradDate || '') + '</td>' +
             '</tr>'
           );
         }).join('');
@@ -176,13 +177,13 @@
 
   function init(root) {
     var tbody = root.querySelector('[data-alumni-body]');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Loading alumni directory&hellip;</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Loading alumni directory&hellip;</td></tr>';
 
     getAll().then(function (all) {
       setup(root, all);
     }).catch(function (err) {
       tbody.innerHTML =
-        '<tr class="empty-row"><td colspan="5">Couldn’t load the directory' +
+        '<tr class="empty-row"><td colspan="6">Couldn’t load the directory' +
         (err && err.message ? ': ' + escapeHtml(err.message) : '.') +
         '</td></tr>';
     });
