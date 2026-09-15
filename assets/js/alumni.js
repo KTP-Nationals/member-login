@@ -49,6 +49,23 @@
     return out;
   }
 
+  /* gradDate is free text (whatever the roster export used, e.g. "2024" or
+     "2019-05") — pull the 4-digit year out of it so the filter works no
+     matter the exact format. */
+  function extractYear(gradDate) {
+    var m = String(gradDate || '').match(/\d{4}/);
+    return m ? m[0] : null;
+  }
+
+  function uniqueYears(list) {
+    var seen = {};
+    list.forEach(function (item) {
+      var y = extractYear(item.gradDate);
+      if (y) { seen[y] = true; }
+    });
+    return Object.keys(seen).sort(function (a, b) { return b.localeCompare(a); }); // newest first
+  }
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -59,11 +76,13 @@
     var searchInput = root.querySelector('[data-alumni-search]');
     var chapterSelect = root.querySelector('[data-alumni-chapter]');
     var companySelect = root.querySelector('[data-alumni-company]');
+    var gradYearSelect = root.querySelector('[data-alumni-gradyear]');
+    var resetBtn = root.querySelector('[data-alumni-reset]');
     var tbody = root.querySelector('[data-alumni-body]');
     var resultsCount = root.querySelector('[data-alumni-count]');
     var headers = Array.prototype.slice.call(root.querySelectorAll('[data-sort-key]'));
 
-    var state = { query: '', chapter: 'all', company: 'all', sortKey: 'name', sortDir: 'asc' };
+    var state = { query: '', chapter: 'all', company: 'all', gradYear: 'all', sortKey: 'name', sortDir: 'asc' };
 
     function fillSelect(select, values, allLabel) {
       var frag = document.createDocumentFragment();
@@ -83,12 +102,14 @@
 
     fillSelect(chapterSelect, uniqueSorted(all, 'chapter'), 'All chapters');
     fillSelect(companySelect, uniqueSorted(all, 'company'), 'All companies');
+    fillSelect(gradYearSelect, uniqueYears(all), 'All grad years');
 
     function filtered() {
       var q = state.query.trim().toLowerCase();
       return all.filter(function (a) {
         if (state.chapter !== 'all' && a.chapter !== state.chapter) { return false; }
         if (state.company !== 'all' && a.company !== state.company) { return false; }
+        if (state.gradYear !== 'all' && extractYear(a.gradDate) !== state.gradYear) { return false; }
         if (q && a.name.toLowerCase().indexOf(q) === -1) { return false; }
         return true;
       });
@@ -147,6 +168,23 @@
 
     companySelect.addEventListener('change', function () {
       state.company = companySelect.value;
+      render();
+    });
+
+    gradYearSelect.addEventListener('change', function () {
+      state.gradYear = gradYearSelect.value;
+      render();
+    });
+
+    resetBtn.addEventListener('click', function () {
+      state.query = '';
+      state.chapter = 'all';
+      state.company = 'all';
+      state.gradYear = 'all';
+      searchInput.value = '';
+      chapterSelect.value = 'all';
+      companySelect.value = 'all';
+      gradYearSelect.value = 'all';
       render();
     });
 
