@@ -372,6 +372,13 @@ a { color: inherit; }
   font-size: 13.5px;
   font-weight: 600;
   color: rgba(255,255,255,0.55);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sidebar-nav-item:hover {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.85);
 }
 
 .sidebar-nav-item .nav-dot {
@@ -542,13 +549,17 @@ a { color: inherit; }
   font-weight: 600;
   font-size: 12.5px;
   letter-spacing: 0.02em;
-  cursor: pointer;
   user-select: none;
   white-space: nowrap;
 }
 
-.alumni-table thead th:hover,
-.alumni-table thead th:focus-visible {
+/* Only headers wired up to sort (data-sort-key) look clickable. */
+.alumni-table thead th[data-sort-key] {
+  cursor: pointer;
+}
+
+.alumni-table thead th[data-sort-key]:hover,
+.alumni-table thead th[data-sort-key]:focus-visible {
   background: var(--navy-800);
   outline: none;
 }
@@ -601,6 +612,20 @@ a { color: inherit; }
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.row-link {
+  color: var(--navy-700);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.row-link:hover {
+  text-decoration: underline;
+}
+
+.row-muted {
+  color: #9aa6c4;
 }
 
 .empty-row td {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KTP Alumni Directory</title>
+<title>KTP Member Directory</title>
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
@@ -17,13 +17,13 @@
     <nav aria-label="Sections">
       <ul class="sidebar-nav">
         <li>
-          <a class="sidebar-nav-item is-active" href="dashboard.html" aria-current="page">
+          <a class="sidebar-nav-item" href="dashboard.html">
             <span class="nav-dot" aria-hidden="true"></span>
             Alumni Database
           </a>
         </li>
         <li>
-          <a class="sidebar-nav-item" href="members.html">
+          <a class="sidebar-nav-item is-active" href="members.html" aria-current="page">
             <span class="nav-dot" aria-hidden="true"></span>
             Member Directory
           </a>
@@ -40,25 +40,24 @@
   <main class="main-content">
     <div class="directory-card">
       <div class="directory-header">
-        <h2>Alumni Directory</h2>
-        <p id="sessionInfo">Search and browse KTP alumni across every chapter.</p>
+        <h2>Member Directory</h2>
+        <p id="sessionInfo">Search and connect with current KTP members.</p>
       </div>
 
       <div class="directory-toolbar">
         <input
           type="search"
           class="search-input"
-          data-alumni-search
+          data-members-search
           placeholder="Search by name&hellip;"
-          aria-label="Search alumni by name"
+          aria-label="Search members by name"
         >
-        <select class="filter-select" data-alumni-chapter aria-label="Filter by chapter"></select>
-        <select class="filter-select" data-alumni-company aria-label="Filter by company"></select>
-        <select class="filter-select" data-alumni-gradyear aria-label="Filter by graduation year"></select>
-        <button type="button" class="btn-reset" data-alumni-reset>Reset filters</button>
+        <select class="filter-select" data-members-major aria-label="Filter by major"></select>
+        <select class="filter-select" data-members-gradyear aria-label="Filter by graduation year"></select>
+        <button type="button" class="btn-reset" data-members-reset>Reset filters</button>
       </div>
 
-      <div class="results-count" data-alumni-count aria-live="polite"></div>
+      <div class="results-count" data-members-count aria-live="polite"></div>
 
       <div class="table-scroll">
         <table class="alumni-table">
@@ -67,24 +66,18 @@
               <th data-sort-key="name" tabindex="0" role="button" aria-sort="ascending">
                 Name<span class="sort-arrow" aria-hidden="true"></span>
               </th>
-              <th data-sort-key="chapter" tabindex="0" role="button" aria-sort="none">
-                Chapter<span class="sort-arrow" aria-hidden="true"></span>
-              </th>
               <th data-sort-key="major" tabindex="0" role="button" aria-sort="none">
                 Major<span class="sort-arrow" aria-hidden="true"></span>
-              </th>
-              <th data-sort-key="job" tabindex="0" role="button" aria-sort="none">
-                Job<span class="sort-arrow" aria-hidden="true"></span>
-              </th>
-              <th data-sort-key="company" tabindex="0" role="button" aria-sort="none">
-                Company<span class="sort-arrow" aria-hidden="true"></span>
               </th>
               <th data-sort-key="gradDate" tabindex="0" role="button" aria-sort="none">
                 Grad Date<span class="sort-arrow" aria-hidden="true"></span>
               </th>
+              <th>School Email</th>
+              <th>LinkedIn</th>
+              <th>Resume</th>
             </tr>
           </thead>
-          <tbody data-alumni-body></tbody>
+          <tbody data-members-body></tbody>
         </table>
       </div>
     </div>
@@ -95,7 +88,7 @@
 <script src="assets/js/supabase-config.js"></script>
 <script src="assets/js/supabase-client.js"></script>
 <script src="assets/js/auth.js"></script>
-<script src="assets/js/alumni.js"></script>
+<script src="assets/js/members.js"></script>
 <script>
 (function () {
   'use strict';
@@ -114,7 +107,7 @@
     var email = session.user.email;
     document.getElementById('userEmail').textContent = email;
     document.getElementById('sessionInfo').textContent =
-      'Signed in as ' + email + '. Search and browse KTP alumni across every chapter.';
+      'Signed in as ' + email + '. Search and connect with current KTP members.';
 
     document.getElementById('signOutBtn').addEventListener('click', function () {
       window.KTPAuth.signOut().then(function () {
@@ -122,7 +115,7 @@
       });
     });
 
-    window.KTPAlumni.init(document);
+    window.KTPMembers.init(document);
   }).catch(function (err) {
     document.body.innerHTML =
       '<p style="padding:40px;text-align:center;color:#b3261e;">' +

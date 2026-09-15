@@ -1,24 +1,55 @@
 # KTP Member Login
 
 A navy-and-white member portal for KTP National: members sign in with a
-one-time emailed link (no shared password), and see a searchable, sortable
-alumni directory. The backend is [Supabase](https://supabase.com) — a
-hosted Postgres database with an auto-generated REST API and built-in auth,
-free to start.
+one-time emailed link (no shared password), and browse two directories —
+**Alumni Database** and **Member Directory**. The backend is
+[Supabase](https://supabase.com) — a hosted Postgres database with an
+auto-generated REST API and built-in auth.
+
+## Status
+
+- ✅ Supabase project connected (`assets/js/supabase-config.js` has real
+  project keys, not placeholders)
+- ✅ `alumni` table created with Row Level Security active — confirmed live:
+  an unauthenticated request to the API returns `[]`, not a missing-table
+  error
+- ✅ Public sign-ups disabled — confirmed live: requesting a magic link for
+  an uninvited address returns `signup_disabled`
+- ✅ Real chapter roster imported into `alumni` (355-row national export,
+  cleaned to 351 valid rows — see "Updating the roster" below)
+- ⬜ `member_directory` table is new and **not yet created in Supabase** —
+  run `supabase/member_directory_schema.sql` (and optionally
+  `member_directory_seed.sql` for demo data) in the SQL Editor before the
+  Member Directory tab will show anything but an empty state. I don't have
+  write access to your database (only the public anon key), so this step
+  has to happen on your end.
+
+Two more things only you can confirm, since they happen inside the
+Supabase dashboard and I can't check them from outside:
+- Every current member has been **invited** (Authentication → Users, or
+  via `scripts/invite-members.mjs`)
+- The static files are hosted somewhere members can actually reach — as of
+  this writing they've only been verified on `localhost`
 
 ## How it works
 
 - **Sign-in** is a magic link, not a password. A member enters their email,
   Supabase emails them a one-time link, and clicking it signs them in.
 - **Who's allowed to sign in** is controlled entirely on the Supabase side:
-  new signups are turned off, so a link only ever gets sent to an email
-  you've explicitly invited. This is the real access control — nothing
+  new signups are off, so a link only ever gets sent to an email you've
+  explicitly invited. This is the real access control — nothing
   client-side decides who gets in.
-- **The alumni directory** lives in a `alumni` table in Postgres, gated by
-  a Row Level Security (RLS) policy that only lets signed-in users read it.
-  An unauthenticated request to the API gets zero rows back, for real —
-  unlike the earlier static-JSON-file version, there's no client-side data
-  to inspect in DevTools.
+- **Alumni Database** (`dashboard.html`) — graduated members, with chapter,
+  major, job, company, and grad date. Search by name, filter by chapter /
+  company / grad year, click-to-sort any column, one-click reset.
+- **Member Directory** (`members.html`) — current members, with major, grad
+  date, school email (click to email), and LinkedIn/resume links (open in
+  a new tab). Search by name, filter by major / grad year, same sort and
+  reset pattern as Alumni Database.
+- Both read from Postgres tables gated by RLS — an unauthenticated API
+  request gets zero rows back, for real, not just hidden in the UI.
+- A left sidebar switches between the two directories; whichever page
+  you're on is highlighted.
 
 ## Files
 
@@ -26,91 +57,119 @@ free to start.
 |---|---|
 | `index.html` | Login page — email in, magic link out. |
 | `dashboard.html` | Member-only alumni directory. |
-| `assets/js/supabase-config.js` | **Edit this**: your project URL + anon key. |
+| `members.html` | Member-only current-member directory. |
+| `assets/js/supabase-config.js` | Your project URL + anon key. Already filled in for this deployment. |
 | `assets/js/supabase-client.js` | Builds the shared Supabase client from the config above. |
-| `assets/js/auth.js` | Sign-in / session / sign-out logic. |
-| `assets/js/alumni.js` | Directory search, filter, sort — reads from Supabase. |
-| `assets/css/style.css` | Shared navy/white styling. |
-| `supabase/schema.sql` | Creates the `alumni` table + RLS policy. Run once. |
-| `supabase/seed.sql` | Sample/demo alumni rows. Replace with your real roster. |
+| `assets/js/auth.js` | Sign-in / session / sign-out logic (shared by both directories). |
+| `assets/js/alumni.js` | Alumni directory search, filter, sort — reads the `alumni` table. |
+| `assets/js/members.js` | Member directory search, filter, sort — reads the `member_directory` table. |
+| `assets/css/style.css` | Shared navy/white styling, sidebar layout. |
+| `supabase/member_directory_schema.sql` | Creates the `member_directory` table + RLS policy. **Not yet run** — see Status. |
+| `supabase/member_directory_seed.sql` | 20 fictional demo rows for `member_directory`. |
 | `scripts/invite-members.mjs` | Bulk-invite members from a CSV of emails. |
+| `.gitignore` | Blocks `*.csv` so real roster exports never get committed. |
 
-## Setup
+Note: `supabase/schema.sql` and `seed.sql` (the `alumni` table's setup
+scripts) were removed from this repo once that table was live in
+production — the table itself is unaffected, but if you ever need to
+recreate it, use the "Database schema" section below rather than looking
+for those files.
 
-### 1. Create a Supabase project
+## Database schema
 
-Go to [supabase.com](https://supabase.com), sign up, and create a new
-project (free tier is enough for this). Save the database password it
-gives you somewhere safe — you likely won't need it day-to-day, but it's
-your project's master credential.
+The exact SQL for both tables, kept here since standalone files in
+`supabase/` have a habit of being cleaned up once they've served their
+purpose. Safe to re-run — `create table if not exists` won't touch an
+existing table.
 
-### 2. Create the database table
+**`alumni`** (graduated members):
 
-In the Supabase dashboard: **SQL Editor → New query**. Paste in the
-contents of `supabase/schema.sql` and run it. Then do the same with
-`supabase/seed.sql` (demo data — swap for your real roster whenever
-you're ready, e.g. via the Table Editor's CSV import).
+```sql
+create extension if not exists pgcrypto;
 
-### 3. Lock sign-ups to invited members only
+create table if not exists public.alumni (
+  id uuid primary key default gen_random_uuid(),
+  first_name text not null,
+  last_name text not null,
+  full_name text not null,
+  chapter text not null,
+  grad_date text,  -- free text; use "YYYY-MM" or a bare year so it sorts correctly
+  major text,
+  job text,
+  company text,
+  created_at timestamptz not null default now()
+);
 
-**Authentication → Providers → Email** → turn **off** "Allow new users to
-sign up." With this off, `signInWithOtp` (the magic-link call) only
-succeeds for emails that already exist as a user — i.e. someone you've
-invited. Everyone else gets a generic "couldn't send a link" error, and
-the login page can't be used to figure out who's on the list.
+alter table public.alumni enable row level security;
 
-### 4. Set your site URL and redirect URL
-
-**Authentication → URL Configuration**:
-- **Site URL**: wherever you'll host the static site (e.g.
-  `https://ktp-yourchapter.vercel.app`).
-- **Redirect URLs**: add that same URL + `/dashboard.html`, and while
-  testing locally, also `http://localhost:8000/dashboard.html` (or
-  whatever port you serve on).
-
-### 5. Copy your project keys into the app
-
-**Project Settings → API**. Copy the **Project URL** and the **anon
-public** key into `assets/js/supabase-config.js`:
-
-```js
-window.KTP_SUPABASE = {
-  url: 'https://your-project-ref.supabase.co',
-  anonKey: 'eyJ...',
-};
+create policy "Authenticated members can view alumni"
+on public.alumni
+for select
+to authenticated
+using (true);
 ```
 
-The anon key is meant to be public — it ships in client code by design.
-Real access control comes from the RLS policy and the signups-off setting
-above, not from hiding this key.
+**`member_directory`** (current members) — also in
+`supabase/member_directory_schema.sql`:
 
-### 6. Invite your members
+```sql
+create extension if not exists pgcrypto;
 
-Either:
-- **One at a time**: Authentication → Users → **Invite user**, or
-- **In bulk**: put one email per line in a `members.csv`, then run:
+create table if not exists public.member_directory (
+  id uuid primary key default gen_random_uuid(),
+  first_name text not null,
+  last_name text not null,
+  school_email text,
+  linkedin text,
+  resume_link text,
+  major text,
+  grad_date text,  -- free text; a bare year like "2027" sorts fine
+  created_at timestamptz not null default now()
+);
 
-  ```
-  SUPABASE_URL=https://your-project-ref.supabase.co \
-  SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
-  node scripts/invite-members.mjs members.csv
-  ```
+alter table public.member_directory enable row level security;
 
-  The **service role key** (also under Project Settings → API) is a full
-  admin credential — never put it in client code or commit it. Only run
-  this script from your own machine.
+create policy "Authenticated members can view member directory"
+on public.member_directory
+for select
+to authenticated
+using (true);
+```
 
-### 7. Host the static site
+Both policies deliberately have no insert/update/delete for
+`authenticated` — members can browse but not edit. Edit rows yourself via
+the SQL Editor or Table Editor (service role, bypasses RLS).
 
-Supabase hosts your *database and API*; you still need somewhere to host
-the plain HTML/CSS/JS files. Easiest options, both free:
+## Redeploying from scratch (disaster recovery / a second chapter's project)
 
-- **[Vercel](https://vercel.com)** or **[Netlify](https://netlify.com)** —
-  drag-and-drop this folder in their dashboard, or connect this GitHub
-  repo for auto-deploys on push. No build step needed.
+If you ever need to rebuild this in a brand-new Supabase project:
 
-Once it's live, double check the URL matches what you set as the Site URL
-in step 4 (and that `.../dashboard.html` is in the Redirect URLs list).
+1. **Create a Supabase project** at [supabase.com](https://supabase.com).
+2. **SQL Editor → New query** → run both `create table` + policy blocks
+   from "Database schema" above (or the seed files, for demo data).
+3. **Authentication → Providers → Email** → turn **off** "Allow new users
+   to sign up." This is what makes sign-in invite-only.
+4. **Authentication → URL Configuration** → set Site URL to wherever the
+   static site is hosted, and add `.../dashboard.html` and
+   `.../members.html` to Redirect URLs (plus the `localhost` equivalents
+   while testing locally).
+5. **Project Settings → API** → copy the Project URL and anon public key
+   into `assets/js/supabase-config.js`. (Tip: the project ref is also
+   readable straight out of the anon key, since a JWT's payload is just
+   base64 — `https://<ref>.supabase.co` where `<ref>` is the `"ref"` field
+   in the decoded middle segment.)
+6. **Invite members** — one at a time via Authentication → Users → Invite
+   user, or in bulk:
+   ```
+   SUPABASE_URL=https://your-project-ref.supabase.co \
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
+   node scripts/invite-members.mjs members.csv
+   ```
+   The service role key is a full admin credential — never in client code,
+   never committed, only run from your own machine.
+7. **Host the static files** — Supabase hosts the database and API; the
+   plain HTML/CSS/JS still needs somewhere to live. Vercel or Netlify (free,
+   drag-and-drop or connect the repo) both work with zero build step.
 
 ## Local testing
 
@@ -118,23 +177,59 @@ in step 4 (and that `.../dashboard.html` is in the Redirect URLs list).
 python3 -m http.server 8000
 ```
 
-Then open `http://localhost:8000/index.html`. Make sure
-`http://localhost:8000/dashboard.html` is added to Redirect URLs in
-Supabase (step 4) or the magic link will redirect but fail to establish a
+Then open `http://localhost:8000/index.html`. Make sure both
+`http://localhost:8000/dashboard.html` and
+`http://localhost:8000/members.html` are in the Supabase project's
+Redirect URLs, or a magic link will redirect but fail to establish a
 session.
 
-## Changing the alumni data day-to-day
+## Updating the roster
 
-Use the Supabase dashboard's **Table Editor** on the `alumni` table —
-add, edit, or delete rows directly, or import a CSV. No code changes or
-redeploys needed; `dashboard.html` reads live from the database.
+Day-to-day edits (one person, a title change) are easiest directly in the
+Supabase **Table Editor**: add, edit, or delete rows on `alumni` or
+`member_directory`, or import a CSV. No code changes or redeploys needed —
+both pages read live from the database.
+
+For a full refresh from a new export, the CSV's headers need to match the
+target table's columns exactly — Supabase's importer matches by exact
+name, so raw headers like "First Name" get rejected.
+
+- **`alumni`**: `first_name`, `last_name`, `full_name`, `chapter`,
+  `grad_date`, `major`, `job`, `company`
+- **`member_directory`**: `first_name`, `last_name`, `school_email`,
+  `linkedin`, `resume_link`, `major`, `grad_date`
+
+Before importing:
+
+1. Rename the header row to the snake_case names above.
+2. Make sure every row has its table's required fields filled in
+   (`first_name`, `last_name`, plus `full_name` and `chapter` for
+   `alumni`) — those are `not null`, and one blank row fails the whole
+   import.
+3. Trim stray leading/trailing whitespace in cells if the source
+   spreadsheet has any (common after copy-pasting between tools).
+
+The most recent `alumni` import (355 exported rows → 351 valid) dropped 4
+rows for missing names — one had "Chicago" typed into the First Name cell
+with no Last Name, and three had no name at all, just chapter/job/company
+for incoming 2025–2026 grads. Fix those in the source spreadsheet and
+re-add them whenever you're ready; ask me to prep a cleaned CSV again any
+time a new export needs the same treatment.
 
 ## Extending this
 
-- **Custom fields** (LinkedIn URL, headshot, bio): add columns to the
-  `alumni` table in `supabase/schema.sql`-style, then add them to the
-  `select(...)` in `assets/js/alumni.js` and the row template in the same
-  file.
+- **Custom fields**: add columns to the relevant table
+  (`alter table public.alumni add column ...` or same for
+  `member_directory`), then add them to the `select(...)` and row template
+  in `assets/js/alumni.js` or `assets/js/members.js`.
+- **More sidebar sections**: the sidebar now has two nav items. Add more
+  `<li><a class="sidebar-nav-item">` entries (in both `dashboard.html` and
+  `members.html`, so the nav stays consistent) plus a corresponding page as
+  the portal grows.
+- **Let members self-edit their own directory row**: would need a
+  `user_id uuid references auth.users` column on `member_directory`, plus
+  an update policy scoped to `auth.uid() = user_id`. Not set up yet —
+  ask if you want it.
 - **Per-chapter admins**: Supabase supports richer RLS policies, e.g.
   restricting write access by a `chapter` claim on the user, if you want
   chapter leads to manage their own rows without full admin access.
