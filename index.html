@@ -100,6 +100,14 @@
     else { input.removeAttribute('aria-invalid'); }
   }
 
+  // Show why we're back here, if a sign-in link failed (expired, already
+  // used, etc.) — either just now on this page, or caught by a gated
+  // page's requireSession() and handed off via sessionStorage.
+  var linkError = window.KTPAuth.consumeUrlError();
+  if (linkError) {
+    showError(linkError + ' Request a new link below.');
+  }
+
   // Already signed in? Skip straight to the directory.
   if (window.supabaseClient) {
     window.KTPAuth.session().then(function (session) {

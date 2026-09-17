@@ -12,6 +12,8 @@
 (function (global) {
   'use strict';
 
+  var URL_ERROR_STORAGE_KEY = 'ktp.urlError.v1';
+
   function client() {
     if (!global.supabaseClient) {
       throw new Error(
@@ -23,6 +25,25 @@
 
   function normalizeEmail(value) {
     return String(value || '').trim().toLowerCase();
+  }
+
+  /*
+   * A failed email link (expired, already used, wrong redirect URL not
+   * allow-listed in Supabase, etc.) comes back as
+   * "#error=...&error_code=...&error_description=..." in the URL rather
+   * than throwing — nothing was reading this before, so people just
+   * bounced back to a blank login page with no explanation. This pulls a
+   * readable message out of it, if there is one.
+   */
+  function extractUrlError() {
+    var hash = global.location.hash || '';
+    if (hash.indexOf('error') === -1) { return null; }
+    var params = new URLSearchParams(hash.replace(/^#/, ''));
+    if (!params.has('error') && !params.has('error_description')) { return null; }
+    var description = params.get('error_description');
+    return description
+      ? description.replace(/\+/g, ' ')
+      : 'Your sign-in link is invalid or has expired.';
   }
 
   global.KTPAuth = {
@@ -65,9 +86,16 @@
 
     /*
      * Gate for member-only pages. Resolves the session if there is one;
-     * otherwise redirects to `loginUrl` and resolves null.
+     * otherwise redirects to `loginUrl` and resolves null. If the URL
+     * carries a failed-link error (see extractUrlError), it's stashed so
+     * the login page can show it after the redirect — otherwise it would
+     * just be lost.
      */
     requireSession: function (loginUrl) {
+      var urlError = extractUrlError();
+      if (urlError) {
+        try { global.sessionStorage.setItem(URL_ERROR_STORAGE_KEY, urlError); } catch (e) { /* ignore */ }
+      }
       return client().auth.getSession().then(function (res) {
         var session = res.data.session;
         if (!session) {
@@ -76,6 +104,30 @@
         }
         return session;
       });
+    },
+
+    /*
+     * For the login page itself: returns a readable error message if the
+     * current page load is the result of a failed email link, checking
+     * both this URL directly (the link redirected straight here) and
+     * sessionStorage (a gated page caught it via requireSession and
+     * bounced here) — clears whichever it found, so refreshing doesn't
+     * keep re-showing a stale error. Returns null if there's nothing to
+     * report.
+     */
+    consumeUrlError: function () {
+      var fromUrl = extractUrlError();
+      if (fromUrl && global.history && global.history.replaceState) {
+        global.history.replaceState(null, '', global.location.pathname + global.location.search);
+      }
+
+      var fromStorage = null;
+      try {
+        fromStorage = global.sessionStorage.getItem(URL_ERROR_STORAGE_KEY);
+        global.sessionStorage.removeItem(URL_ERROR_STORAGE_KEY);
+      } catch (e) { /* ignore */ }
+
+      return fromUrl || fromStorage || null;
     },
   };
 }(window));
