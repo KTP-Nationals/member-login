@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KTP Member Login</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
@@ -102,7 +103,7 @@
   // Already signed in? Skip straight to the directory.
   if (window.supabaseClient) {
     window.KTPAuth.session().then(function (session) {
-      if (session) { window.location.replace('dashboard.html'); }
+      if (session) { window.location.replace('members.html'); }
     });
   }
 

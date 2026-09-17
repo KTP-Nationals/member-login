@@ -30,12 +30,13 @@
 
     /*
      * Emails a one-time sign-in link to `email`, pointing back at
-     * dashboard.html on this same site. Resolves { ok: true } on success,
-     * or { ok: false, message } on failure — including when the email
-     * isn't on the invited list, so as not to reveal which addresses are.
+     * members.html (the default landing page) on this same site. Resolves
+     * { ok: true } on success, or { ok: false, message } on failure —
+     * including when the email isn't on the invited list, so as not to
+     * reveal which addresses are.
      */
     sendMagicLink: function (email) {
-      var redirectTo = new URL('dashboard.html', global.location.href).toString();
+      var redirectTo = new URL('members.html', global.location.href).toString();
       return client().auth.signInWithOtp({
         email: normalizeEmail(email),
         options: { emailRedirectTo: redirectTo },

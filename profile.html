@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KTP Profile</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-mark-sm" aria-hidden="true">KTP</div>
+      <div class="sidebar-brand-text">KTP National<small>Member Portal</small></div>
+    </div>
+
+    <nav aria-label="Sections">
+      <ul class="sidebar-nav">
+        <li>
+          <a class="sidebar-nav-item" href="members.html">
+            <span class="nav-dot" aria-hidden="true"></span>
+            Member Directory
+          </a>
+        </li>
+        <li>
+          <a class="sidebar-nav-item" href="dashboard.html">
+            <span class="nav-dot" aria-hidden="true"></span>
+            Alumni Database
+          </a>
+        </li>
+        <li>
+          <a class="sidebar-nav-item" href="links.html">
+            <span class="nav-dot" aria-hidden="true"></span>
+            Important Links
+          </a>
+        </li>
+        <li>
+          <a class="sidebar-nav-item is-active" href="profile.html" aria-current="page">
+            <span class="nav-dot" aria-hidden="true"></span>
+            Profile
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user-email" id="userEmail"></div>
+      <button class="btn-signout" id="signOutBtn">Sign out</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <div class="profile-card">
+      <div class="directory-header">
+        <h2>Your Profile</h2>
+        <p>Keep your Member Directory entry up to date. Changes save straight to the directory.</p>
+      </div>
+
+      <div id="alertError" class="alert alert-error" role="alert">
+        <span class="alert-icon" aria-hidden="true">&#9888;</span>
+        <span id="alertErrorText"></span>
+      </div>
+
+      <div id="alertSuccess" class="alert alert-success" role="status">
+        <span class="alert-icon" aria-hidden="true">&#10003;</span>
+        <span id="alertSuccessText">Saved — your changes are live in the directory.</span>
+      </div>
+
+      <div id="loadingState" style="text-align:center; color:var(--navy-600); padding: 20px 0;">
+        Loading your profile&hellip;
+      </div>
+
+      <div id="notFoundState" class="alert alert-locked" hidden>
+        <span class="alert-icon" aria-hidden="true">&#128269;</span>
+        <span>
+          We couldn't find a Member Directory entry matching your sign-in email.
+          Contact your chapter's tech chair to get one added, then check back here.
+        </span>
+      </div>
+
+      <form id="profileForm" hidden>
+        <div class="field-row">
+          <div class="field">
+            <label for="firstName">First name</label>
+            <input type="text" id="firstName" name="firstName" required>
+          </div>
+          <div class="field">
+            <label for="lastName">Last name</label>
+            <input type="text" id="lastName" name="lastName" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="chapter">Chapter</label>
+          <input type="text" id="chapter" name="chapter" disabled>
+          <p class="field-hint">Contact your chapter's tech chair to change your chapter.</p>
+        </div>
+
+        <div class="field">
+          <label for="schoolEmail">School email</label>
+          <input type="email" id="schoolEmail" name="schoolEmail" disabled>
+          <p class="field-hint">This is your sign-in email and can't be changed here.</p>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="major">Major</label>
+            <input type="text" id="major" name="major" placeholder="e.g. Computer Science">
+          </div>
+          <div class="field">
+            <label for="minor">Minor</label>
+            <input type="text" id="minor" name="minor" placeholder="Optional">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="linkedin">LinkedIn</label>
+          <input type="url" id="linkedin" name="linkedin" placeholder="https://linkedin.com/in/yourname">
+        </div>
+
+        <div class="field">
+          <label for="gradDate">Graduation date</label>
+          <input type="text" id="gradDate" name="gradDate" placeholder="e.g. Spring 2027 or 2027">
+        </div>
+
+        <button type="submit" class="btn-primary" id="saveBtn">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="btn-label">Save changes</span>
+        </button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/js/supabase-config.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/profile.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  if (!window.supabaseClient) {
+    document.body.innerHTML =
+      '<p style="padding:40px;text-align:center;color:#b3261e;">' +
+      'This site isn’t connected to Supabase yet. See README.md to finish setup, ' +
+      'then <a href="index.html">return to sign in</a>.</p>';
+    return;
+  }
+
+  window.KTPAuth.requireSession('index.html').then(function (session) {
+    if (!session) { return; } // already redirecting to login
+
+    var email = session.user.email;
+    document.getElementById('userEmail').textContent = email;
+
+    document.getElementById('signOutBtn').addEventListener('click', function () {
+      window.KTPAuth.signOut().then(function () {
+        window.location.href = 'index.html';
+      });
+    });
+
+    window.KTPProfile.init(document, session);
+  }).catch(function (err) {
+    document.body.innerHTML =
+      '<p style="padding:40px;text-align:center;color:#b3261e;">' +
+      'Couldn’t verify your sign-in' + (err && err.message ? ': ' + err.message : '.') +
+      ' <a href="index.html">Return to sign in</a>.</p>';
+  });
+}());
+</script>
+</body>
+</html>

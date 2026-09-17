@@ -125,7 +125,8 @@ a { color: inherit; }
 
 .field input[type="email"],
 .field input[type="password"],
-.field input[type="text"] {
+.field input[type="text"],
+.field input[type="url"] {
   width: 100%;
   padding: 11px 13px;
   font-size: 15px;
@@ -151,6 +152,22 @@ a { color: inherit; }
 .field input[aria-invalid="true"] {
   border-color: var(--error);
   background: var(--error-bg);
+}
+
+.field input:disabled {
+  background: var(--navy-100);
+  color: var(--navy-600);
+  cursor: not-allowed;
+}
+
+.field-row {
+  display: flex;
+  gap: 14px;
+}
+
+.field-row .field {
+  flex: 1;
+  min-width: 0;
 }
 
 .password-row {
@@ -443,6 +460,38 @@ a { color: inherit; }
   box-shadow: 0 8px 30px -12px rgba(10,19,41,0.15);
 }
 
+.profile-card {
+  width: 100%;
+  max-width: 560px;
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 32px;
+  box-shadow: 0 8px 30px -12px rgba(10,19,41,0.15);
+}
+
+.profile-card .directory-header p {
+  margin-bottom: 26px;
+}
+
+.links-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.links-list li {
+  padding: 14px 4px;
+  border-top: 1px solid var(--navy-100);
+}
+
+.links-list li:first-child {
+  border-top: none;
+}
+
+.links-list .row-link {
+  font-size: 15px;
+}
+
 .directory-header h2 {
   margin: 0 0 4px;
   color: var(--navy-900);
@@ -711,4 +760,8 @@ a { color: inherit; }
 
 @media (max-width: 420px) {
   .card { padding: 32px 22px 26px; }
+}
+
+@media (max-width: 480px) {
+  .field-row { flex-direction: column; gap: 0; }
 }
