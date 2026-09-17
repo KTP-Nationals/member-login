@@ -9,7 +9,7 @@
  * THE SEAM: getAll() below is the only place that touches the data source.
  * Point it anywhere else and everything below it — search, sort, filter,
  * rendering — keeps working, as long as records keep this shape:
- *   { name, chapter, major, job, company, gradDate }
+ *   { name, chapter, major, job, company, gradDate, email, linkedin }
  */
 (function (global) {
   'use strict';
@@ -22,7 +22,7 @@
     }
     return global.supabaseClient
       .from('alumni')
-      .select('full_name, chapter, major, job, company, grad_date')
+      .select('full_name, chapter, major, job, company, grad_date, email, linkedin')
       .then(function (res) {
         if (res.error) { throw res.error; }
         return (res.data || []).map(function (row) {
@@ -33,6 +33,8 @@
             job: row.job,
             company: row.company,
             gradDate: row.grad_date,
+            email: row.email,
+            linkedin: row.linkedin,
           };
         });
       });
@@ -70,6 +72,68 @@
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+
+  /* Only allow http(s) links through to an href, so a stray "javascript:"
+     or empty value in the data can't do anything unexpected. */
+  function safeHttpUrl(url) {
+    var u = String(url || '').trim();
+    return /^https?:\/\//i.test(u) ? u : '';
+  }
+
+  function linkCell(url, label) {
+    var safe = safeHttpUrl(url);
+    if (!safe) { return '<span class="row-muted">&mdash;</span>'; }
+    return '<a class="row-link" href="' + escapeHtml(safe) + '" target="_blank" rel="noopener noreferrer">' +
+      escapeHtml(label) + ' ↗</a>';
+  }
+
+  var COPY_ICON =
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>' +
+    '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+
+  function emailCell(email) {
+    var e = String(email || '').trim();
+    if (!e) { return '<span class="row-muted">&mdash;</span>'; }
+    return (
+      '<span class="email-cell">' +
+        '<a class="row-link" href="mailto:' + escapeHtml(e) + '">' + escapeHtml(e) + '</a>' +
+        '<button type="button" class="copy-btn" data-copy-email="' + escapeHtml(e) + '" ' +
+          'title="Copy email" aria-label="Copy email address">' + COPY_ICON + '</button>' +
+      '</span>'
+    );
+  }
+
+  /* Clipboard write needs a secure context (https, or localhost while
+     testing) — falls back to the classic textarea+execCommand trick if
+     navigator.clipboard isn't available. Resolves true/false; never
+     rejects, so callers don't need a .catch(). */
+  function copyToClipboard(text) {
+    if (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText) {
+      return global.navigator.clipboard.writeText(text)
+        .then(function () { return true; })
+        .catch(function () { return legacyCopy(text); });
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+
+  function legacyCopy(text) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) {
+      return false;
+    }
   }
 
   function setup(root, all) {
@@ -130,7 +194,7 @@
 
       if (rows.length === 0) {
         tbody.innerHTML =
-          '<tr class="empty-row"><td colspan="6">No alumni match your search or filters.</td></tr>';
+          '<tr class="empty-row"><td colspan="8">No alumni match your search or filters.</td></tr>';
       } else {
         tbody.innerHTML = rows.map(function (a) {
           return (
@@ -141,6 +205,8 @@
               '<td>' + escapeHtml(a.job || '') + '</td>' +
               '<td>' + escapeHtml(a.company || '') + '</td>' +
               '<td>' + escapeHtml(a.gradDate || '') + '</td>' +
+              '<td>' + emailCell(a.email) + '</td>' +
+              '<td>' + linkCell(a.linkedin, 'View') + '</td>' +
             '</tr>'
           );
         }).join('');
@@ -188,6 +254,27 @@
       render();
     });
 
+    /* Event delegation for the per-row copy buttons: render() rewrites
+       tbody's innerHTML on every change, so listeners bound to individual
+       buttons would be lost each time. One listener on tbody survives that. */
+    tbody.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest && e.target.closest('[data-copy-email]');
+      if (!btn || btn.disabled) { return; }
+
+      var email = btn.getAttribute('data-copy-email');
+      copyToClipboard(email).then(function (ok) {
+        var original = btn.innerHTML;
+        btn.innerHTML = ok ? '&#10003;' : '&#10007;';
+        btn.classList.toggle('is-copied', ok);
+        btn.disabled = true;
+        setTimeout(function () {
+          btn.innerHTML = original;
+          btn.classList.remove('is-copied');
+          btn.disabled = false;
+        }, 1200);
+      });
+    });
+
     headers.forEach(function (th) {
       var key = th.getAttribute('data-sort-key');
 
@@ -215,13 +302,13 @@
 
   function init(root) {
     var tbody = root.querySelector('[data-alumni-body]');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Loading alumni directory&hellip;</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Loading alumni directory&hellip;</td></tr>';
 
     getAll().then(function (all) {
       setup(root, all);
     }).catch(function (err) {
       tbody.innerHTML =
-        '<tr class="empty-row"><td colspan="6">Couldn’t load the directory' +
+        '<tr class="empty-row"><td colspan="8">Couldn’t load the directory' +
         (err && err.message ? ': ' + escapeHtml(err.message) : '.') +
         '</td></tr>';
     });

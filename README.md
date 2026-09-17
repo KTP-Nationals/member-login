@@ -23,6 +23,9 @@ auto-generated REST API and built-in auth.
 - ⬜ `member_directory`'s `minor` column and the self-edit RLS policy are
   new — **run `supabase/member_directory_schema.sql` again** (it's
   idempotent, safe to re-run) before Profile page saves will work.
+- ⬜ `alumni`'s `email` and `linkedin` columns are new — **run
+  `supabase/alumni_add_contact_fields.sql`** before those show real data
+  in the Alumni Database (until then they'll just render as empty).
 
 Two more things only you can confirm, since they happen inside the
 Supabase dashboard and I can't check them from outside:
@@ -45,8 +48,9 @@ Supabase dashboard and I can't check them from outside:
   it), and a LinkedIn link. Search by name, filter by chapter / major /
   grad year, click-to-sort any column, one-click reset.
 - **Alumni Database** (`dashboard.html`) — graduated members: chapter,
-  major, job, company, grad date. Same search / filter / sort / reset
-  pattern as Member Directory.
+  major, job, company, grad date, email (click to email, or copy with the
+  icon next to it), and a LinkedIn link. Same search / filter / sort /
+  reset pattern as Member Directory.
 - **Important Links** (`links.html`) — placeholder page, ready for content.
 - **Profile** (`profile.html`) — a member's own editable view of their
   Member Directory row: name, major, minor, LinkedIn, and grad date can be
@@ -101,6 +105,7 @@ failed save.
 | `assets/js/profile.js` | Loads and saves the signed-in member's own `member_directory` row. |
 | `assets/css/style.css` | Shared navy/white styling, sidebar layout. |
 | `assets/favicon.svg` | Simple navy/gold "K" monogram, used as the site favicon. |
+| `supabase/alumni_add_contact_fields.sql` | One-time migration adding `email` + `linkedin` to `alumni`. |
 | `scripts/invite-members.mjs` | Bulk-invite members from a CSV of emails. |
 | `.gitignore` | Blocks `*.csv` so real roster exports never get committed. |
 
@@ -131,8 +136,15 @@ create table if not exists public.alumni (
   major text,
   job text,
   company text,
+  email text,
+  linkedin text,
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run against a table created before these existed
+-- (also in supabase/alumni_add_contact_fields.sql):
+alter table public.alumni add column if not exists email text;
+alter table public.alumni add column if not exists linkedin text;
 
 alter table public.alumni enable row level security;
 
@@ -252,7 +264,7 @@ target table's columns exactly — Supabase's importer matches by exact
 name, so raw headers like "First Name" get rejected.
 
 - **`alumni`**: `first_name`, `last_name`, `full_name`, `chapter`,
-  `grad_date`, `major`, `job`, `company`
+  `grad_date`, `major`, `job`, `company`, `email`, `linkedin`
 - **`member_directory`**: `first_name`, `last_name`, `chapter`,
   `school_email`, `linkedin`, `major`, `minor`, `grad_date`
 
