@@ -101,9 +101,6 @@ failed save.
 | `assets/js/profile.js` | Loads and saves the signed-in member's own `member_directory` row. |
 | `assets/css/style.css` | Shared navy/white styling, sidebar layout. |
 | `assets/favicon.svg` | Simple navy/gold "K" monogram, used as the site favicon. |
-| `supabase/member_directory_schema.sql` | Creates `member_directory` + both RLS policies (view-all, edit-own). |
-| `supabase/member_directory_seed.sql` | 20 fictional demo rows for `member_directory`. |
-| `supabase/normalize_majors.sql` | One-time fix for majors that only differed by capitalization. |
 | `scripts/invite-members.mjs` | Bulk-invite members from a CSV of emails. |
 | `.gitignore` | Blocks `*.csv` so real roster exports never get committed. |
 
@@ -268,22 +265,6 @@ Before importing:
    import.
 3. Trim stray leading/trailing whitespace in cells if the source
    spreadsheet has any (common after copy-pasting between tools).
-4. Normalize any date-ish field (like `member_directory.grad_date`) to one
-   consistent format across every chapter before importing — different
-   chapters tend to enter this differently ("S27", "Fall 2026", "may
-   2028", …), and a mixed format makes sorting/filtering unreliable.
-5. Normalize casing on categorical fields (`major`, and for `alumni` also
-   `job`/`company`) before importing — different chapters/people typing
-   the same thing ("Computer Science" vs "computer science") otherwise
-   shows up as separate filter options **and** displays inconsistently in
-   the table itself, since these are exact-string matches, not
-   case-insensitive. `supabase/normalize_majors.sql` is a one-time cleanup
-   for major casing found in the first two imports; the same class of
-   issue exists in `alumni.job` and `alumni.company` too (not yet fixed —
-   ask if you want that pass run as well).
-
-Ask me to normalize a new export and I'll do the same passes as the ones
-below.
 
 **`alumni`** (355 exported rows → 351 valid): dropped 4 rows for missing
 names — one had "Chicago" typed into the First Name cell with no Last
