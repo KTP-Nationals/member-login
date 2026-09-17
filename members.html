@@ -57,6 +57,14 @@
         <p id="sessionInfo">Search and connect with current KTP members.</p>
       </div>
 
+      <div id="graduationBanner" class="alert alert-success" hidden>
+        <span class="alert-icon" aria-hidden="true">&#127891;</span>
+        <span>
+          Congrats on graduating! You've been moved to the
+          <a class="row-link" href="dashboard.html">Alumni Database</a>.
+        </span>
+      </div>
+
       <div class="directory-toolbar">
         <input
           type="search"
@@ -104,6 +112,7 @@
 <script src="assets/js/supabase-config.js"></script>
 <script src="assets/js/supabase-client.js"></script>
 <script src="assets/js/auth.js"></script>
+<script src="assets/js/graduation.js"></script>
 <script src="assets/js/members.js"></script>
 <script>
 (function () {
@@ -131,7 +140,20 @@
       });
     });
 
-    window.KTPMembers.init(document);
+    // Auto-promote to Alumni Database if this member's grad year has
+    // passed, before rendering the directory — failures here are
+    // non-fatal (they just mean the promotion didn't run this visit;
+    // the directory itself doesn't depend on it).
+    window.KTPGraduation.checkAndPromote(email)
+      .then(function (result) {
+        if (result.status === 'promoted') {
+          document.getElementById('graduationBanner').hidden = false;
+        }
+      })
+      .catch(function () { /* non-fatal; directory still loads below */ })
+      .then(function () {
+        window.KTPMembers.init(document);
+      });
   }).catch(function (err) {
     document.body.innerHTML =
       '<p style="padding:40px;text-align:center;color:#b3261e;">' +

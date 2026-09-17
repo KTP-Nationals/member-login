@@ -12,16 +12,23 @@
  * pages read from, so changes show up there immediately — there's no
  * separate "profile" data store to keep in sync.
  *
- * The actual security is enforced by the "Members can update their own
- * directory row" RLS policy in supabase/member_directory_schema.sql, not
- * by anything in this file — this file just can't succeed in updating a
- * row that policy doesn't allow.
+ * The actual security is enforced by RLS policies in
+ * supabase/member_directory_schema.sql and
+ * supabase/add_career_fields_and_promotion.sql, not by anything in this
+ * file — this file just can't succeed in touching a row those policies
+ * don't allow.
+ *
+ * Loading defers to assets/js/graduation.js, which — before this file
+ * ever sees the row — checks whether the member's graduation year has
+ * passed and, if so, moves them to the alumni table first. That's why
+ * this file has states beyond just "found" / "not found": a member can
+ * land here mid-move (their member_directory row is already gone).
  */
 (function (global) {
   'use strict';
 
   var TABLE = 'member_directory';
-  var SELECT_COLS = 'id, first_name, last_name, chapter, school_email, linkedin, major, minor, grad_date';
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   function client() {
     if (!global.supabaseClient) {
@@ -40,6 +47,8 @@
 
     var loadingState = root.getElementById('loadingState');
     var notFoundState = root.getElementById('notFoundState');
+    var promotedState = root.getElementById('promotedState');
+    var alreadyAlumniState = root.getElementById('alreadyAlumniState');
     var form = root.getElementById('profileForm');
     var alertError = root.getElementById('alertError');
     var alertErrorText = root.getElementById('alertErrorText');
@@ -52,6 +61,9 @@
     var schoolEmailInput = root.getElementById('schoolEmail');
     var majorInput = root.getElementById('major');
     var minorInput = root.getElementById('minor');
+    var companyInput = root.getElementById('company');
+    var positionInput = root.getElementById('position');
+    var personalEmailInput = root.getElementById('personalEmail');
     var linkedinInput = root.getElementById('linkedin');
     var gradDateInput = root.getElementById('gradDate');
 
@@ -86,6 +98,9 @@
       schoolEmailInput.value = row.school_email || '';
       majorInput.value = row.major || '';
       minorInput.value = row.minor || '';
+      companyInput.value = row.company || '';
+      positionInput.value = row.position || '';
+      personalEmailInput.value = row.personal_email || '';
       linkedinInput.value = row.linkedin || '';
       gradDateInput.value = row.grad_date || '';
     }
@@ -96,27 +111,34 @@
       return;
     }
 
-    client()
-      .from(TABLE)
-      .select(SELECT_COLS)
-      .ilike('school_email', email)
-      .maybeSingle()
-      .then(function (res) {
+    if (!global.KTPGraduation) {
+      loadingState.hidden = true;
+      showError('A required script (graduation.js) failed to load. Try refreshing the page.');
+      notFoundState.hidden = false;
+      return;
+    }
+
+    global.KTPGraduation.checkAndPromote(email)
+      .then(function (result) {
         loadingState.hidden = true;
 
-        if (res.error) {
-          showError('Couldn’t load your profile: ' + res.error.message);
-          notFoundState.hidden = false;
+        if (result.status === 'active') {
+          populate(result.row);
+          form.hidden = false;
           return;
         }
 
-        if (!res.data) {
-          notFoundState.hidden = false;
+        if (result.status === 'promoted') {
+          promotedState.hidden = false;
           return;
         }
 
-        populate(res.data);
-        form.hidden = false;
+        if (result.status === 'already-alumni') {
+          alreadyAlumniState.hidden = false;
+          return;
+        }
+
+        notFoundState.hidden = false;
       })
       .catch(function (err) {
         loadingState.hidden = true;
@@ -141,6 +163,12 @@
         return;
       }
 
+      var personalEmailRaw = personalEmailInput.value.trim();
+      if (personalEmailRaw && !EMAIL_RE.test(personalEmailRaw)) {
+        showError('Enter a valid personal email address, or leave it blank.');
+        return;
+      }
+
       setSaving(true);
 
       client()
@@ -150,6 +178,9 @@
           last_name: lastName,
           major: majorInput.value.trim(),
           minor: minorInput.value.trim(),
+          company: companyInput.value.trim(),
+          position: positionInput.value.trim(),
+          personal_email: personalEmailRaw,
           linkedin: linkedinRaw,
           grad_date: gradDateInput.value.trim(),
         })

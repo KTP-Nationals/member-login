@@ -79,6 +79,23 @@
         </span>
       </div>
 
+      <div id="promotedState" class="alert alert-success" hidden>
+        <span class="alert-icon" aria-hidden="true">&#127891;</span>
+        <span>
+          Congrats on graduating! You've been moved from Member Directory to the
+          <a class="row-link" href="dashboard.html">Alumni Database</a> &mdash;
+          find your entry there any time.
+        </span>
+      </div>
+
+      <div id="alreadyAlumniState" class="alert alert-success" hidden>
+        <span class="alert-icon" aria-hidden="true">&#127891;</span>
+        <span>
+          You're listed in the <a class="row-link" href="dashboard.html">Alumni Database</a>,
+          not Member Directory, so there's nothing to edit here.
+        </span>
+      </div>
+
       <form id="profileForm" hidden>
         <div class="field-row">
           <div class="field">
@@ -114,6 +131,22 @@
           </div>
         </div>
 
+        <div class="field-row">
+          <div class="field">
+            <label for="company">Company</label>
+            <input type="text" id="company" name="company" placeholder="Optional">
+          </div>
+          <div class="field">
+            <label for="position">Position</label>
+            <input type="text" id="position" name="position" placeholder="Optional">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="personalEmail">Personal email</label>
+          <input type="email" id="personalEmail" name="personalEmail" placeholder="Optional &mdash; used once you're an alum">
+        </div>
+
         <div class="field">
           <label for="linkedin">LinkedIn</label>
           <input type="url" id="linkedin" name="linkedin" placeholder="https://linkedin.com/in/yourname">
@@ -137,6 +170,7 @@
 <script src="assets/js/supabase-config.js"></script>
 <script src="assets/js/supabase-client.js"></script>
 <script src="assets/js/auth.js"></script>
+<script src="assets/js/graduation.js"></script>
 <script src="assets/js/profile.js"></script>
 <script>
 (function () {

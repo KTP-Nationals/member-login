@@ -22,7 +22,7 @@
     }
     return global.supabaseClient
       .from('alumni')
-      .select('full_name, chapter, major, job, company, grad_date, email, linkedin')
+      .select('full_name, chapter, major, job, company, grad_date, email, personal_email, linkedin')
       .then(function (res) {
         if (res.error) { throw res.error; }
         return (res.data || []).map(function (row) {
@@ -33,7 +33,11 @@
             job: row.job,
             company: row.company,
             gradDate: row.grad_date,
-            email: row.email,
+            // Prefer personal_email for display — a school address often
+            // stops working a while after graduation. `email` (the
+            // school/sign-in address) is still what auto-promotion
+            // anchors on internally; this is purely cosmetic.
+            email: row.personal_email || row.email,
             linkedin: row.linkedin,
           };
         });

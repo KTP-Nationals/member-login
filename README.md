@@ -26,6 +26,11 @@ auto-generated REST API and built-in auth.
 - ⬜ `alumni`'s `email` and `linkedin` columns are new — **run
   `supabase/alumni_add_contact_fields.sql`** before those show real data
   in the Alumni Database (until then they'll just render as empty).
+- ⬜ `member_directory`'s `company`/`position`/`personal_email` columns,
+  `alumni`'s `personal_email` column, and the two new RLS policies that
+  let a member move themselves to Alumni Database at graduation are new —
+  **run `supabase/add_career_fields_and_promotion.sql`** before Profile
+  page saves of those fields (or any auto-promotion) will work.
 
 Two more things only you can confirm, since they happen inside the
 Supabase dashboard and I can't check them from outside:
@@ -53,11 +58,14 @@ Supabase dashboard and I can't check them from outside:
   reset pattern as Member Directory.
 - **Important Links** (`links.html`) — placeholder page, ready for content.
 - **Profile** (`profile.html`) — a member's own editable view of their
-  Member Directory row: name, major, minor, LinkedIn, and grad date can be
-  changed; chapter and school email are shown but locked (see "How Profile
-  finds your row" below). Saves write straight to `member_directory`, so
-  the change shows up in the directory immediately — there's no separate
-  copy of the data to keep in sync.
+  Member Directory row: name, major, minor, company, position, personal
+  email, LinkedIn, and grad date can be changed; chapter and school email
+  are shown but locked (see "How Profile finds your row" below). Saves
+  write straight to `member_directory`, so the change shows up in the
+  directory immediately — there's no separate copy of the data to keep in
+  sync.
+- **Graduating members move to Alumni Database automatically** — see
+  "Auto-promotion to Alumni Database" below.
 - Every table is gated by Postgres Row Level Security — an unauthenticated
   API request gets zero rows back, for real, not just hidden in the UI.
 - A left sidebar switches between all four pages; whichever one you're on
@@ -88,6 +96,69 @@ Profile page: changing it to something else would just be rejected by this
 same policy, so the form locks it instead of surprising someone with a
 failed save.
 
+### Auto-promotion to Alumni Database
+
+When a member's graduation year has passed, `assets/js/graduation.js`
+moves their row from `member_directory` to `alumni` automatically:
+inserts the equivalent `alumni` row (mapping `position` → `job` and
+carrying over chapter/major/company/LinkedIn/grad date), then deletes the
+`member_directory` row. It runs on load of **Member Directory** and
+**Profile** — the two pages a signed-in member is likely to land on — and
+only ever touches the signed-in member's own row.
+
+**"Graduation year has passed"** means the year in `grad_date` is
+strictly *before* the current calendar year — someone graduating "Spring
+2027" isn't moved until 2028 arrives, not partway through 2027. `grad_date`
+is free text, so this uses the first 4-digit number found in it (same rule
+the directory filters already use). A row with no recognizable year, or no
+`chapter` (required on `alumni`), is left alone rather than guessed at —
+it'll try again automatically next time that member logs in.
+
+**This is real security, not a UI nicety**, same as the update policy
+above — two new RLS policies (`supabase/add_career_fields_and_promotion.sql`)
+make it work:
+
+```sql
+-- A member can insert an alumni row for THEMSELVES only:
+create policy "Members can insert their own alumni row"
+on public.alumni
+for insert
+to authenticated
+with check (lower(email) = lower(auth.jwt() ->> 'email'));
+
+-- A member can delete THEIR OWN member_directory row:
+create policy "Members can delete their own directory row"
+on public.member_directory
+for delete
+to authenticated
+using (lower(school_email) = lower(auth.jwt() ->> 'email'));
+```
+
+`alumni.email` is always set to the member's school/sign-in email at the
+moment they're promoted — it's the reliable anchor these policies (and
+later lookups) key off of, the same role `member_directory.school_email`
+already plays. The new `alumni.personal_email` column is separate,
+supplementary contact info; the directory UI shows it instead of `email`
+when it's present, since a school address often stops working a while
+after graduation.
+
+**The gap**: this is a static site with no server always running, so the
+move only ever happens when the graduating member visits the site
+themselves. Someone who never logs in again after their grad year passes
+would stay listed as a current member indefinitely. For that,
+`supabase/promote_graduated_members.sql` is an admin-run bulk script (SQL
+Editor, runs as the database owner — bypasses RLS on purpose, since it has
+to touch rows that don't belong to whoever's running it) that sweeps up
+everyone matching the same rule. Run it periodically (e.g. once a
+semester); it's safe to run repeatedly.
+
+**One rough edge worth knowing**: after a member is promoted, their
+Profile page (which only manages `member_directory`) shows an "already an
+alum" message rather than an editable form — there's no self-edit UI for
+`alumni` rows yet. They still show up correctly in Alumni Database; they
+just can't update their own entry there themselves. Ask if you want that
+extended to `alumni` too.
+
 ## Files
 
 | Path | What it's for |
@@ -95,7 +166,7 @@ failed save.
 | `index.html` | Login page — email in, magic link out. |
 | `members.html` | Member-only current-member directory (default landing page). |
 | `dashboard.html` | Member-only alumni directory. |
-| `links.html` | Placeholder resources page — no content yet. |
+| `links.html` | Chapter Playbook, National Website, Merch Store links. |
 | `profile.html` | Edit your own Member Directory row. |
 | `assets/js/supabase-config.js` | Your project URL + anon key. Already filled in for this deployment. |
 | `assets/js/supabase-client.js` | Builds the shared Supabase client from the config above. |
@@ -103,9 +174,12 @@ failed save.
 | `assets/js/alumni.js` | Alumni directory search, filter, sort — reads the `alumni` table. |
 | `assets/js/members.js` | Member directory search, filter, sort — reads the `member_directory` table. |
 | `assets/js/profile.js` | Loads and saves the signed-in member's own `member_directory` row. |
+| `assets/js/graduation.js` | Moves a member to `alumni` once their grad year has passed — see "Auto-promotion" above. |
 | `assets/css/style.css` | Shared navy/white styling, sidebar layout. |
 | `assets/favicon.svg` | Simple navy/gold "K" monogram, used as the site favicon. |
 | `supabase/alumni_add_contact_fields.sql` | One-time migration adding `email` + `linkedin` to `alumni`. |
+| `supabase/add_career_fields_and_promotion.sql` | Adds career fields + the two auto-promotion RLS policies. |
+| `supabase/promote_graduated_members.sql` | Admin-run bulk catch-all for graduates who haven't logged back in. |
 | `scripts/invite-members.mjs` | Bulk-invite members from a CSV of emails. |
 | `.gitignore` | Blocks `*.csv` so real roster exports never get committed. |
 
@@ -136,15 +210,16 @@ create table if not exists public.alumni (
   major text,
   job text,
   company text,
-  email text,
+  email text,          -- anchor: always the member's school/sign-in email, even post-grad
+  personal_email text, -- supplementary; shown instead of `email` in the UI when present
   linkedin text,
   created_at timestamptz not null default now()
 );
 
--- Safe to re-run against a table created before these existed
--- (also in supabase/alumni_add_contact_fields.sql):
+-- Safe to re-run against a table created before these existed:
 alter table public.alumni add column if not exists email text;
 alter table public.alumni add column if not exists linkedin text;
+alter table public.alumni add column if not exists personal_email text;
 
 alter table public.alumni enable row level security;
 
@@ -153,6 +228,15 @@ on public.alumni
 for select
 to authenticated
 using (true);
+
+-- Lets a member insert an alumni row for THEMSELVES only — used by
+-- auto-promotion, see that section above.
+drop policy if exists "Members can insert their own alumni row" on public.alumni;
+create policy "Members can insert their own alumni row"
+on public.alumni
+for insert
+to authenticated
+with check (lower(email) = lower(auth.jwt() ->> 'email'));
 ```
 
 **`member_directory`** (current members) — also in
@@ -170,6 +254,9 @@ create table if not exists public.member_directory (
   linkedin text,
   major text,
   minor text,
+  company text,
+  position text,
+  personal_email text,
   grad_date text,  -- free text; a bare year like "2027" sorts fine
   created_at timestamptz not null default now()
 );
@@ -177,6 +264,9 @@ create table if not exists public.member_directory (
 -- Safe to re-run against a table created before a later column existed:
 alter table public.member_directory add column if not exists chapter text;
 alter table public.member_directory add column if not exists minor text;
+alter table public.member_directory add column if not exists company text;
+alter table public.member_directory add column if not exists position text;
+alter table public.member_directory add column if not exists personal_email text;
 alter table public.member_directory drop column if exists resume_link;
 
 alter table public.member_directory enable row level security;
@@ -197,14 +287,24 @@ for update
 to authenticated
 using (lower(school_email) = lower(auth.jwt() ->> 'email'))
 with check (lower(school_email) = lower(auth.jwt() ->> 'email'));
+
+-- Lets a member delete THEIR OWN row — used by auto-promotion, see that
+-- section above.
+drop policy if exists "Members can delete their own directory row" on public.member_directory;
+create policy "Members can delete their own directory row"
+on public.member_directory
+for delete
+to authenticated
+using (lower(school_email) = lower(auth.jwt() ->> 'email'));
 ```
 
-`alumni` has no insert/update/delete policy for `authenticated` at all —
-members can browse but not edit; you edit rows yourself via the SQL Editor
-or Table Editor (service role, bypasses RLS). `member_directory` is the
-same **except** a member can update their own row via the Profile page, as
-described above — everyone else's rows, and every column of their own row
-Profile doesn't expose (`chapter`, `school_email`), are still admin-only.
+Neither table lets a member touch anyone else's row, or update/delete
+`alumni` at all — those stay admin-only via the SQL Editor or Table Editor
+(service role, bypasses RLS). The only write access a member has is: update
+their own `member_directory` row via Profile (everyone else's rows, and
+columns Profile doesn't expose like `chapter`/`school_email`, are still
+locked), and — only as part of auto-promotion, never directly — insert one
+`alumni` row for themselves and delete their own `member_directory` row.
 
 ## Redeploying from scratch (disaster recovery / a second chapter's project)
 
