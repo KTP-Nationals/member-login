@@ -73,6 +73,32 @@
       });
     },
 
+    /*
+     * Verifies the 6-digit code from the same email sendMagicLink sends
+     * (the "or enter the code" fallback on the login page) — useful when
+     * the clickable link doesn't survive an email security scanner
+     * pre-visiting it, which single-use links are prone to on
+     * institutional (school/work) email. Same email + code the OTP flow
+     * emailed; on success this establishes a session exactly like
+     * clicking the link would. Resolves { ok: true } or
+     * { ok: false, message }.
+     */
+    verifyOtpCode: function (email, code) {
+      return client().auth.verifyOtp({
+        email: normalizeEmail(email),
+        token: String(code || '').trim(),
+        type: 'email',
+      }).then(function (res) {
+        if (res.error) {
+          return {
+            ok: false,
+            message: 'That code is incorrect or has expired. Double-check it, or request a new link/code below.',
+          };
+        }
+        return { ok: true };
+      });
+    },
+
     /* Resolves the current session, or null if signed out / expired. */
     session: function () {
       return client().auth.getSession().then(function (res) {

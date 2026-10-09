@@ -20,17 +20,13 @@ auto-generated REST API and built-in auth.
   cleaned to 351 valid rows — see "Updating the roster" below)
 - ✅ Real member roster imported into `member_directory` (425-row export,
   cleaned to 424 valid rows)
-- ⬜ `member_directory`'s `minor` column and the self-edit RLS policy are
-  new — **run `supabase/member_directory_schema.sql` again** (it's
-  idempotent, safe to re-run) before Profile page saves will work.
-- ⬜ `alumni`'s `email` and `linkedin` columns are new — **run
-  `supabase/alumni_add_contact_fields.sql`** before those show real data
-  in the Alumni Database (until then they'll just render as empty).
-- ⬜ `member_directory`'s `company`/`position`/`personal_email` columns,
-  `alumni`'s `personal_email` column, and the two new RLS policies that
-  let a member move themselves to Alumni Database at graduation are new —
-  **run `supabase/add_career_fields_and_promotion.sql`** before Profile
-  page saves of those fields (or any auto-promotion) will work.
+- ✅ All schema migrations applied — `member_directory`'s `minor`,
+  `company`, `position`, `personal_email` columns; `alumni`'s `email`,
+  `linkedin`, `personal_email` columns; and the self-edit / auto-promotion
+  RLS policies on both tables. The one-time migration files that added
+  these have been removed now that they're applied — the "Database
+  schema" section below is the durable reference if you ever need to
+  recreate or audit them.
 
 Two more things only you can confirm, since they happen inside the
 Supabase dashboard and I can't check them from outside:
@@ -42,8 +38,10 @@ Supabase dashboard and I can't check them from outside:
 ## How it works
 
 - **Sign-in** is a magic link, not a password. A member enters their email,
-  Supabase emails them a one-time link, and clicking it signs them in —
-  landing on **Member Directory**, the default page.
+  Supabase emails them a one-time link (and, once the email template is set
+  up — see "Troubleshooting sign-in" below — a 6-digit code as a fallback),
+  and either one signs them in — landing on **Member Directory**, the
+  default page.
 - **Who's allowed to sign in** is controlled entirely on the Supabase side:
   new signups are off, so a link only ever gets sent to an email you've
   explicitly invited. This is the real access control — nothing
@@ -77,8 +75,8 @@ There's no login/member-directory linking column. Instead, the row you can
 edit is whichever `member_directory` row has a `school_email` matching
 your signed-in email (case-insensitively) — reliable because accounts are
 invite-only by school email already. That matching is enforced by the
-database itself via this RLS policy (already in
-`supabase/member_directory_schema.sql`):
+database itself via this RLS policy (already applied — see "Database
+schema" below):
 
 ```sql
 create policy "Members can update their own directory row"
@@ -115,8 +113,8 @@ the directory filters already use). A row with no recognizable year, or no
 it'll try again automatically next time that member logs in.
 
 **This is real security, not a UI nicety**, same as the update policy
-above — two new RLS policies (`supabase/add_career_fields_and_promotion.sql`)
-make it work:
+above — two RLS policies make it work (already applied — see "Database
+schema" below):
 
 ```sql
 -- A member can insert an alumni row for THEMSELVES only:
@@ -177,17 +175,19 @@ extended to `alumni` too.
 | `assets/js/graduation.js` | Moves a member to `alumni` once their grad year has passed — see "Auto-promotion" above. |
 | `assets/css/style.css` | Shared navy/white styling, sidebar layout. |
 | `assets/favicon.svg` | Simple navy/gold "K" monogram, used as the site favicon. |
-| `supabase/alumni_add_contact_fields.sql` | One-time migration adding `email` + `linkedin` to `alumni`. |
-| `supabase/add_career_fields_and_promotion.sql` | Adds career fields + the two auto-promotion RLS policies. |
-| `supabase/promote_graduated_members.sql` | Admin-run bulk catch-all for graduates who haven't logged back in. |
+| `supabase/promote_graduated_members.sql` | Admin-run bulk catch-all for graduates who haven't logged back in — meant to be run periodically, not a one-time migration. |
 | `scripts/invite-members.mjs` | Bulk-invite members from a CSV of emails. |
 | `.gitignore` | Blocks `*.csv` so real roster exports never get committed. |
 
-Note: `supabase/schema.sql` and `seed.sql` (the `alumni` table's setup
-scripts) were removed from this repo once that table was live in
-production — the table itself is unaffected, but if you ever need to
-recreate it, use the "Database schema" section below rather than looking
-for those files.
+Note: every one-time setup/migration script (`schema.sql`, `seed.sql`,
+`member_directory_schema.sql`, `alumni_add_contact_fields.sql`,
+`add_career_fields_and_promotion.sql`, `normalize_majors.sql`, and
+anything else in that vein) gets removed from this repo once it's been
+applied in production — the live database is unaffected, but if you ever
+need to recreate or audit the schema, use the "Database schema" section
+below rather than looking for those files. `promote_graduated_members.sql`
+is the one exception that's kept, since it's meant to be run again
+periodically, not just once.
 
 ## Database schema
 
@@ -239,8 +239,7 @@ to authenticated
 with check (lower(email) = lower(auth.jwt() ->> 'email'));
 ```
 
-**`member_directory`** (current members) — also in
-`supabase/member_directory_schema.sql`:
+**`member_directory`** (current members):
 
 ```sql
 create extension if not exists pgcrypto;
@@ -338,6 +337,59 @@ If you ever need to rebuild this in a brand-new Supabase project:
 7. **Host the static files** — Supabase hosts the database and API; the
    plain HTML/CSS/JS still needs somewhere to live. Vercel or Netlify (free,
    drag-and-drop or connect the repo) both work with zero build step.
+
+## Troubleshooting sign-in
+
+### "Email link is invalid or has expired"
+
+This is Supabase's own error, shown to the person (not something the app
+generates) when a one-time sign-in token gets rejected. `index.html` now
+surfaces it clearly instead of silently bouncing back to a blank form — if
+you see something *other* than this exact message, it's a different issue;
+read the actual text.
+
+The most common cause by far, especially for `.edu` or corporate email:
+**an email security scanner (Proofpoint, Mimecast, Barracuda, etc.)
+automatically "visits" links in incoming mail to check them for malware.**
+Since sign-in links are single-use, that automated visit alone burns the
+token — the real person then clicks a already-dead link, often within
+seconds of it arriving. Less common causes: a second invite/link for the
+same address superseded the first (only the newest pending one is valid),
+or it genuinely sat unused for too long.
+
+**Fix 1 — a 6-digit code instead of a link.** A code typed in by hand can't
+be pre-consumed by a scanner the way a clickable link can. The login page
+now has an "or enter the 6-digit code" field alongside the link, but it
+only shows a code once the email actually contains one:
+
+1. Supabase Dashboard → **Authentication → Email Templates → Magic Link**.
+2. Add `{{ .Token }}` somewhere in the template body, e.g.:
+   ```html
+   <p>Or enter this code: <strong>{{ .Token }}</strong></p>
+   ```
+3. Save. Every sign-in email sent after this point includes both the link
+   and the code.
+
+This covers every sign-in that goes through **this app's own** "Send
+sign-in link" form (`index.html`, via `signInWithOtp` — that's `auth.js`'s
+`sendMagicLink`). It's a standard passwordless-email flow that Supabase
+has always supported; nothing here works around Supabase's security, it's
+just exposing a delivery method (a typed code) the emails already carry
+under the hood, alongside the link.
+
+**Fix 2 — for someone stuck on their very first invite specifically.**
+Supabase's admin **invite** email (sent from Authentication → Users →
+Invite user, or `scripts/invite-members.mjs`) is a separate template from
+the one above, and I can't confirm from here whether adding `{{ .Token }}`
+to *it* behaves identically — if you want to try, it's the same steps
+under the **Invite** template instead. But there's a simpler, guaranteed
+fix that needs no template changes: **once someone has been invited, their
+account already exists** — "Allow new user signups" being off only blocks
+*creating* new accounts, not signing in to ones that already exist. So
+regardless of whether their original invite email works, they can just go
+to the login page and request a sign-in link/code themselves, the same way
+every returning member does. Tell them to do that rather than retrying the
+original invite email.
 
 ## Local testing
 

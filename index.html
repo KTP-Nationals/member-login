@@ -39,7 +39,7 @@
             inputmode="email"
             required
           >
-          <p class="field-hint">We'll email you a one-time sign-in link &mdash; no password needed.</p>
+          <p class="field-hint">We'll email you a one-time sign-in link. No password needed.</p>
         </div>
 
         <button type="submit" class="btn-primary" id="submitBtn">
@@ -52,6 +52,31 @@
           Contact your chapter to submit their roster or contact kappathetapinational@gmail.com.
         </div>
       </form>
+
+      <div id="codeEntry" hidden>
+        <div class="field">
+          <label for="otpCode">Or enter the 6-digit code from that email</label>
+          <input
+            type="text"
+            id="otpCode"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="6"
+            placeholder="123456"
+            autocomplete="one-time-code"
+          >
+          <p class="field-hint">
+            Useful if the link doesn't work &mdash; school/work email security
+            scanners sometimes "click" links automatically, which can make a
+            real click show "expired" even seconds after the email arrives.
+          </p>
+        </div>
+
+        <button type="button" class="btn-primary" id="verifyCodeBtn">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="btn-label">Verify code</span>
+        </button>
+      </div>
     </main>
   </div>
   <div class="page-footer">Kappa Theta Pi &middot; Members-only portal</div>
@@ -72,6 +97,11 @@
   var alertErrorText = document.getElementById('alertErrorText');
   var alertSuccess = document.getElementById('alertSuccess');
   var alertSuccessText = document.getElementById('alertSuccessText');
+  var codeEntry = document.getElementById('codeEntry');
+  var otpCodeInput = document.getElementById('otpCode');
+  var verifyCodeBtn = document.getElementById('verifyCodeBtn');
+
+  var sentToEmail = null;
 
   function hideAlerts() {
     alertError.classList.remove('is-visible');
@@ -93,6 +123,11 @@
   function setLoading(isLoading) {
     submitBtn.disabled = isLoading;
     submitBtn.classList.toggle('is-loading', isLoading);
+  }
+
+  function setVerifying(isVerifying) {
+    verifyCodeBtn.disabled = isVerifying;
+    verifyCodeBtn.classList.toggle('is-loading', isVerifying);
   }
 
   function markInvalid(input, invalid) {
@@ -149,10 +184,48 @@
 
       form.querySelector('.btn-primary').disabled = true;
       emailInput.disabled = true;
-      showSuccess('Check ' + email + ' for a sign-in link. It’ll expire in about an hour.');
+      sentToEmail = email;
+      codeEntry.hidden = false;
+      showSuccess(
+        'Check ' + email + ' for a sign-in link, or the 6-digit code below. It’ll expire in about an hour.'
+      );
     }).catch(function () {
       setLoading(false);
       showError('Something went wrong sending your sign-in link. Please try again.');
+    });
+  });
+
+  verifyCodeBtn.addEventListener('click', function () {
+    if (!window.supabaseClient) {
+      showError('This site isn’t connected to Supabase yet. See README.md to finish setup.');
+      return;
+    }
+
+    var code = otpCodeInput.value.trim();
+    if (!code) {
+      showError('Enter the 6-digit code from your email.');
+      return;
+    }
+    if (!sentToEmail) {
+      showError('Send yourself a code first using the form above.');
+      return;
+    }
+
+    hideAlerts();
+    setVerifying(true);
+
+    window.KTPAuth.verifyOtpCode(sentToEmail, code).then(function (result) {
+      setVerifying(false);
+
+      if (!result.ok) {
+        showError(result.message);
+        return;
+      }
+
+      window.location.href = 'members.html';
+    }).catch(function () {
+      setVerifying(false);
+      showError('Something went wrong verifying that code. Please try again.');
     });
   });
 }());
