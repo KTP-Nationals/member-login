@@ -84,7 +84,7 @@ a { color: inherit; }
   height: 56px;
   border-radius: 50%;
   background: linear-gradient(160deg, var(--navy-800), var(--navy-600));
-  color: var(--gold);
+  color: var(--white);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -349,7 +349,7 @@ a { color: inherit; }
   flex-shrink: 0;
   border-radius: 50%;
   background: linear-gradient(160deg, var(--navy-700), var(--navy-500));
-  color: var(--gold);
+  color: var(--white);
   display: flex;
   align-items: center;
   justify-content: center;
