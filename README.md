@@ -176,7 +176,7 @@ extended to `alumni` too.
 | `assets/css/style.css` | Shared navy/white styling, sidebar layout. |
 | `assets/favicon.svg` | Simple navy/gold "K" monogram, used as the site favicon. |
 | `supabase/promote_graduated_members.sql` | Admin-run bulk catch-all for graduates who haven't logged back in — meant to be run periodically, not a one-time migration. |
-| `scripts/invite-members.mjs` | Bulk-invite members from a CSV of emails. |
+| `scripts/invite-members.mjs` | Bulk-add members from a CSV of emails — invites by default, or `SILENT=1` to create accounts with no email sent. |
 | `.gitignore` | Blocks `*.csv` so real roster exports never get committed. |
 
 Note: every one-time setup/migration script (`schema.sql`, `seed.sql`,
@@ -325,13 +325,21 @@ If you ever need to rebuild this in a brand-new Supabase project:
    readable straight out of the anon key, since a JWT's payload is just
    base64 — `https://<ref>.supabase.co` where `<ref>` is the `"ref"` field
    in the decoded middle segment.)
-6. **Invite members** — one at a time via Authentication → Users → Invite
-   user, or in bulk:
+6. **Add members** — one at a time via Authentication → Users, or in bulk:
    ```
    SUPABASE_URL=https://your-project-ref.supabase.co \
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
    node scripts/invite-members.mjs members.csv
    ```
+   This emails every address an invite right away. For a big one-time
+   import where you don't want hundreds of people emailed at once, prefix
+   with `SILENT=1` instead — it creates the accounts with no email sent at
+   all; each person just gets the normal sign-in email whenever they
+   actually show up and request one themselves. The dashboard's
+   Authentication → Users page has a similar no-email option alongside
+   "Invite user" (exact wording may vary by Supabase version — look for a
+   way to add a user without sending an invite).
+
    The service role key is a full admin credential — never in client code,
    never committed, only run from your own machine.
 7. **Host the static files** — Supabase hosts the database and API; the
