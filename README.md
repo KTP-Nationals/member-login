@@ -410,6 +410,39 @@ Then open `http://localhost:8000/index.html`. Make sure
 the Supabase project's Redirect URLs, or a magic link will redirect but
 fail to establish a session.
 
+## Onboarding new members
+
+Two separate steps — **get the same email into both halves**, or a member
+will be able to sign in but Profile and auto-promotion-to-alumni (which
+both match by email) won't find them.
+
+**1. Get them into the directory.** Add a row to `member_directory` — one
+at a time in the Table Editor, or in bulk via CSV import. See "Updating
+the roster" below for the exact column headers.
+
+**2. Give that same email a way to sign in.** Signups are off, so nobody
+can just show up and create their own account — the email has to exist as
+a Supabase user first. Same choice either way:
+```
+node scripts/invite-members.mjs members.csv              # emails an invite right away
+SILENT=1 node scripts/invite-members.mjs members.csv      # creates the account, no email at all
+```
+(or one person at a time via Authentication → Users). Use `SILENT=1` when
+onboarding a whole chapter at once — otherwise everyone gets emailed the
+instant you run the script, whether or not they're expecting it that day.
+Without it, use the plain invite for a one-off member you want to notify
+immediately.
+
+**That's it — there's no separate "activate your account" step.** The
+member goes to the login page, enters their email, and gets a link or
+6-digit code. Signing in for the first time *is* the activation; nothing
+else needs to happen first.
+
+The two steps can happen in either order, and at different times —
+someone invited today with no `member_directory` row yet can still sign
+in, they'll just see "we couldn't find a Member Directory entry" on
+Profile until their row is added.
+
 ## Updating the roster
 
 Day-to-day edits (one person, a title change) are easiest directly in the
